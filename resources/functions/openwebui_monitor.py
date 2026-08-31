@@ -2,7 +2,7 @@
 title: Usage Monitor
 author: VariantConst & OVINC CN & yuzukumo
 git_url: https://github.com/yuzukumo/OpenWebUI-Monitor.git
-version: 0.3.7
+version: 0.3.8
 requirements: httpx
 license: MIT
 """
@@ -141,7 +141,7 @@ class Filter:
 
         return False
 
-    async def request(
+    async def _send_monitor_request(
         self, client: AsyncClient, url: str, headers: dict, json_data: dict
     ):
         def serialize(value):
@@ -186,7 +186,7 @@ class Filter:
         client = AsyncClient()
 
         try:
-            response_data = await self.request(
+            response_data = await self._send_monitor_request(
                 client=client,
                 url=f"{self.valves.api_endpoint}/api/v1/inlet",
                 headers={"Authorization": f"Bearer {self.valves.api_key}"},
@@ -261,7 +261,7 @@ class Filter:
         client = AsyncClient()
 
         try:
-            response_data = await self.request(
+            response_data = await self._send_monitor_request(
                 client=client,
                 url=f"{self.valves.api_endpoint}/api/v1/outlet",
                 headers={"Authorization": f"Bearer {self.valves.api_key}"},

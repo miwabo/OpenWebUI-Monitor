@@ -53,6 +53,10 @@ def load_monitor_module():
 async def main():
     module = load_monitor_module()
     monitor = module.Filter()
+    assert not callable(getattr(monitor, "request", None)), (
+        "request is an OpenWebUI filter lifecycle hook and must not be used "
+        "as an internal helper"
+    )
     user = {"id": "filter-test-user"}
     successful_body = {
         "model": "image-model",
@@ -89,7 +93,7 @@ async def main():
             "newBalance": 9.98,
         }
 
-    monitor.request = fake_request
+    monitor._send_monitor_request = fake_request
 
     failed_metadata = {}
     error_event = {"error": {"detail": "intentional upstream failure"}}
