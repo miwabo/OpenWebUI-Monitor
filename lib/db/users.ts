@@ -355,7 +355,26 @@ async function ensureUserColumnsExist() {
     }
 }
 
-export async function ensureUserTableExists() {
+// Same rationale as ensureTablesExist() in ./client: this does ACCESS
+// EXCLUSIVE ALTER TABLE statements plus an unqualified `UPDATE users`
+// backfill on every call. It was previously invoked on every inlet AND
+// outlet request via getOrCreateUser(), which is the main source of the
+// lock contention/deadlocks under concurrent chat traffic. Memoize it
+// per process so it only actually runs once after boot.
+let userTableEnsuredPromise: Promise<void> | null = null
+
+export function ensureUserTableExists(): Promise<void> {
+    if (!userTableEnsuredPromise) {
+        userTableEnsuredPromise = ensureUserTableExistsOnce().catch((error) => {
+            userTableEnsuredPromise = null
+            throw error
+        })
+    }
+
+    return userTableEnsuredPromise
+}
+
+async function ensureUserTableExistsOnce() {
     const tableExists = await query(`
     SELECT EXISTS (
       SELECT FROM information_schema.tables 

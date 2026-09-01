@@ -125,7 +125,32 @@ if (typeof window === 'undefined') {
 
 export { getClient }
 
-export async function ensureTablesExist() {
+// Schema setup/backfill is idempotent but expensive: it issues several
+// ACCESS EXCLUSIVE `ALTER TABLE ... ALTER COLUMN TYPE` statements plus
+// unqualified `UPDATE users`/`UPDATE user_usage_records` backfills that
+// lock every row in those tables. Previously this ran on every single
+// inlet/outlet request, which under concurrent chat traffic produced
+// severe lock contention (and real `deadlock detected` errors, not just
+// slow queries) on the hot `users` table. Memoize it per process so the
+// heavy path only runs once after boot; every later call becomes a
+// no-op await on the cached promise, matching the pattern already used
+// for `usersSyncPromise` below.
+let tablesEnsuredPromise: Promise<void> | null = null
+
+export function ensureTablesExist(): Promise<void> {
+    if (!tablesEnsuredPromise) {
+        tablesEnsuredPromise = ensureTablesExistOnce().catch((error) => {
+            // Let the next call retry instead of caching a permanent failure
+            // (e.g. a transient connection error during startup).
+            tablesEnsuredPromise = null
+            throw error
+        })
+    }
+
+    return tablesEnsuredPromise
+}
+
+async function ensureTablesExistOnce() {
     try {
         const usersTableExists = await query(`
       SELECT EXISTS (
